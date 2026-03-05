@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -61,7 +63,7 @@ int main(int argc, char *argv[]) {
 
 void exec_miner(int n_rounds, int n_threads, long int sol_ini, int *pipe_info, int *pipe_res) {
     Info *data = NULL;
-    Bloq *data_bloq = NULL;
+    Bloq data_bloq;
     pthread_t *threads = NULL;
     long int incr, j, k;
     Bool cont;
@@ -88,13 +90,6 @@ void exec_miner(int n_rounds, int n_threads, long int sol_ini, int *pipe_info, i
         exit(EXIT_FAILURE);
     }
 
-    if(!(data_bloq = (Bloq *)malloc(sizeof(Bloq)))) {
-        perror("malloc");
-        free(data);
-        free(threads);
-        exit(EXIT_FAILURE);
-    } 
-
     close(pipe_info[0]);
     close(pipe_res[1]);
 
@@ -115,13 +110,13 @@ void exec_miner(int n_rounds, int n_threads, long int sol_ini, int *pipe_info, i
             }
         }
 
-        data_bloq->exit = FALSE;
-        data_bloq->n_round = l;
-        data_bloq->pid = getpid();
-        data_bloq->sol = data->fin_sol;
-        data_bloq->target_ini = data->ini_sol;
+        data_bloq.exit = FALSE;
+        data_bloq.n_round = l;
+        data_bloq.pid = getpid();
+        data_bloq.sol = data->fin_sol;
+        data_bloq.target_ini = data->ini_sol;
         
-        if(write(pipe_info[1], data_bloq, sizeof(data_bloq)) == -1) {
+        if(write(pipe_info[1], &data_bloq, sizeof(data_bloq)) == -1) {
             perror("write");
             exit(EXIT_FAILURE);
         }
@@ -139,13 +134,13 @@ void exec_miner(int n_rounds, int n_threads, long int sol_ini, int *pipe_info, i
         }
     }
 
-    data_bloq->exit = TRUE;
-    data_bloq->n_round = 0;
-    data_bloq->pid = getpid();
-    data_bloq->sol = 0;
-    data_bloq->target_ini = 0;
+    data_bloq.exit = TRUE;
+    data_bloq.n_round = 0;
+    data_bloq.pid = getpid();
+    data_bloq.sol = 0;
+    data_bloq.target_ini = 0;
 
-    if(write(pipe_info[1], data_bloq, sizeof(data_bloq) + 1) == -1) {
+    if(write(pipe_info[1], &data_bloq, sizeof(data_bloq) + 1) == -1) {
         perror("write");
         exit(EXIT_FAILURE);
     }
@@ -171,10 +166,11 @@ void solucionar(long int min, long int max, Info *data) {
     }
 }
 
-void exec_register(int *pipe) {
+void exec_register(int *pipe_info, int *pipe_res) {
     char *tok = NULL;
-    Bloq *data_bloq = NULL;
-    int fichero;
+    Bloq data_bloq;
+    int fichero, nbytes;
+    Bool cont;
 
     if((fichero = open("log.txt", O_CREAT | O_TRUNC | O_WRONLY, 
                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) == -1) {
@@ -182,14 +178,36 @@ void exec_register(int *pipe) {
         exit(EXIT_FAILURE);
     }
 
-    if(!(data_bloq = (Bloq *)malloc(sizeof(Bloq)))) {
-        perror("malloc");
+    close(pipe_info[1]);
+    close(pipe_res[0]);
+
+    while((nbytes = read(pipe_info[0], data_bloq, sizeof(data_bloq))) == sizeof(data_bloq)) {
+        dprintf("Id:       %d\n"
+                "Winner:   %d\n"
+                "Target:   %ld\n"
+                "Solution: %ld\n"
+                "Votes:    %d/%d\n"
+                "Wallets:  %d:%d",
+                data_bloq->n_round,
+                (int)data_bloq->pid,
+                data_bloq->target_ini,
+                data_bloq->sol,
+                data_bloq->n_round,
+                data_bloq->n_round,
+                (int)data_bloq->pid,
+                data_bloq->n_round);
+
+        cont = TRUE;
+        if(write(pipe_res[1], cont, sizeof(cont)) == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if(nbytes == -1) {
+        perror("read");
         exit(EXIT_FAILURE);
     }
 
-    close(pipe[1]);
 
-    while((read(pipe[0], data_bloq, sizeof(data_bloq))) == sizeof(data_bloq)) {
-
-    }
 }

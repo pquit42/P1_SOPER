@@ -19,7 +19,7 @@
  * f(x) = (X x + Y) % P.
  *
  * @param x Argument of the hash function, x.
- * @return Result of the hash function, f(x).
+ * @return Result of the hash function, f(x). qw
  */
 long int pow_hash(long int x);
 
